@@ -9,33 +9,40 @@ import sys
 import os
 
 
+
 def main():
     conn = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-
     connections = {}
     rdns = {}
+    packet_count = 0
 
     while True:
+        packet_count = packet_count + 1
         raw_data, addr = conn.recvfrom(65536)
         dest_mac, src_mac, eth_proto, data = ethernet_frame(raw_data)
         data_size = len(raw_data)
         if eth_proto == 'IPV4':
             srcDest = (src, dest) = getSrcDest(data, raw_data)
         else:
-            srcDest = (src, dest) = ipv6Header(data)
-        rdns[src] = socket.getnameinfo((src, 0), 0)
-        rdns[dest] = socket.getnameinfo((dest, 0), 0)
+            continue #srcDest = (src, dest) = ipv6Header(data)
+        if not src in rdns:
+        	rdns[src] = socket.getnameinfo((src, 0), 0)
+        if not dest in rdns:	
+        	rdns[dest] = socket.getnameinfo((dest, 0), 0)
         if srcDest in connections:
             connections[srcDest] = connections[srcDest] + data_size
         else:
             connections[srcDest] = data_size
-        clear = lambda: os.system('clear')
-        clear()
-        for connection in connections:
-            connection_transfer = connections[connection]
-            print(str(connection) + '\t' + str(connection_transfer) + ' B' + '\t' + '{0:.0f}'.format(
-                connection_transfer / 1024) + ' KB' + '\t' + '{0:.0f}'.format(connection_transfer / 1024 / 1024) + ' MB' + '\t' + str(
-                rdns[connection[0]]) + ' -> ' + str(rdns[connection[1]]))
+        if packet_count == 100:
+        	clear = lambda: os.system('clear')
+        	clear()
+        	packet_count = 0
+        	for connection in connections:
+            		connection_transfer = connections[connection]
+            		print(str(connection) + '\t' + str(connection_transfer) + ' B' + '\t' + '{0:.0f}'.format(
+                	connection_transfer / 1024) + ' KB' + '\t' + '{0:.0f}'.format(connection_transfer / 1024 / 1024) + ' MB' + '\t' + str(
+                	rdns[connection[0]]) + ' -> ' + str(rdns[connection[1]]))
+        
 
 
 
