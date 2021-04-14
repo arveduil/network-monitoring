@@ -1,12 +1,26 @@
 from prometheus_client import start_http_server
 import sqlite3
 import time
+import socket
+from functools import reduce
 
 db_connection = sqlite3.connect('traffic.sqlite')
+rDNS = {}
 
+def flat_map(f, xs):
+    ys = []
+    for x in xs:
+        ys.extend(f(x))
+    return ys
 
-def rdns_lookups():
-    # TODO: Implement, preferably with a table which caches those
+def rdns_lookups(records):
+    if not reduce:
+        return
+    ips = flat_map(lambda x: [x[1], x[2]], records )
+    for ip in ips:
+        if not ip in rDNS:
+            rDNS[ip] = socket.getnameinfo((ip, 0), 0)[0]
+            print(ip + "\t" + str(rDNS[ip]))
     return
 
 
@@ -32,8 +46,8 @@ def listen():
 
     latest_timestamp = None
     while True:
-        rdns_lookups()
         records = fetch_records(latest_timestamp)
+        rdns_lookups(records)
         print(f'Fetched records: {len(records)}')
         if len(records):
             latest_timestamp = update_latest_timestamp(records)

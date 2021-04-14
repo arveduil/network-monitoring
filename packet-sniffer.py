@@ -70,12 +70,12 @@ def ipv4(addr):
     return '.'.join(map(str, addr))
 
 
-# TODO: Add index if we're not going to delete records.
 # TODO: Consider inserting them in bigger intervals, which would make the amount smaller
-def create_table(db):
+def create_table_with_index(db):
     cur = db.cursor()
     cur.execute('''CREATE TABLE if not exists TrafficLogs 
                       (timestamp datetime, source text, destination text, data integer)''')
+    cur.execute('''CREATE INDEX if not exists timestamp_index ON TrafficLogs(timestamp)''')
     db.commit()
 
 
@@ -119,7 +119,7 @@ db_connection = None
 
 try:
     db_connection = sqlite3.connect('traffic.sqlite')
-    create_table(db_connection)
+    create_table_with_index(db_connection)
     monitor(db_connection)
     db_connection.close()
 except KeyboardInterrupt:
