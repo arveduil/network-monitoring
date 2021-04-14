@@ -40,21 +40,6 @@ class EthernetProtocol(Enum):
     IPV6 = "IPV6"
 
 
-def insert_sql_query(timestamp: datetime, src: str, dest: str, size: int):
-    return f"INSERT INTO TrafficLogs VALUES ('{timestamp}', '{src}', '{dest}', {str(size)})"
-
-
-def insert_transfer_log(connection, connection_transfer, cursor):
-    insert_query = insert_sql_query(
-        timestamp=get_now(),
-        src=connection[0],
-        dest=connection[1],
-        size=connection_transfer
-    )
-    log.debug(f'Executing SQL: {insert_query}')
-    cursor.execute(insert_query)
-
-
 def get_proto(hex_proto_type) -> Union[EthernetProtocol, None]:
     if hex_proto_type == '0x800':
         return EthernetProtocol.IPV4
@@ -85,6 +70,8 @@ def ipv4(addr):
     return '.'.join(map(str, addr))
 
 
+# TODO: Add index if we're not going to delete records.
+# TODO: Consider inserting them in bigger intervals, which would make the amount smaller
 def create_table(db):
     cur = db.cursor()
     cur.execute('''CREATE TABLE if not exists TrafficLogs 
@@ -102,12 +89,17 @@ def monitor(db):
         now_seconds = get_now().second
         if now_seconds != last_insert_timestamp_seconds and now_seconds % 5 == 0:
             last_insert_timestamp_seconds = now_seconds
-            for connection in connections:
-                transfer = connections[connection]
-                insert_transfer_log(connection, transfer, db.cursor())
 
-            connections = {}
+            timestamp = get_now()
+            cursor = db.cursor()
+            cursor.executemany(f"INSERT INTO TrafficLogs VALUES (?, ?, ?, ?)", [
+                [timestamp, connection[0], connection[1], connections[connection]]
+                for connection in connections
+            ])
             db.commit()
+
+            log.debug(f'SQL Executed: INSERT INTO TrafficLogs ({len(connections.keys())} records) ')
+            connections = {}
 
         packet_count = packet_count + 1
 
@@ -122,8 +114,6 @@ def monitor(db):
 
         connections[connection] = (connections.get(connection) or 0) + len(raw_data)
 
-    db.close()
-
 
 db_connection = None
 
@@ -131,6 +121,7 @@ try:
     db_connection = sqlite3.connect('traffic.sqlite')
     create_table(db_connection)
     monitor(db_connection)
+    db_connection.close()
 except KeyboardInterrupt:
     log.error('Program received interrupt signal!')
     if db_connection:
