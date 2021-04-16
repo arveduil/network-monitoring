@@ -3,36 +3,14 @@ import binascii
 import struct
 import os
 import sys
-import datetime
 import sqlite3
-import logging
 from enum import Enum
 from typing import Union
 
+from utils.logs import get_logger
+from utils.time import get_now
 
-def get_now():
-    return datetime.datetime.now()
-
-
-def configure_logging():
-    logger = logging.getLogger('network-sniffer')
-    logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    launch_time = str(get_now()).replace(' ', '_')
-    f_handler = logging.FileHandler(f'./logs/packet-sniffer-{launch_time}.log')
-    c_handler = logging.StreamHandler()
-
-    c_handler.setLevel(logging.DEBUG)
-    f_handler.setLevel(logging.DEBUG)
-    c_handler.setFormatter(formatter)
-    f_handler.setFormatter(formatter)
-    logger.addHandler(f_handler)
-    logger.addHandler(c_handler)
-    return logger
-
-
-log = configure_logging()
+log = get_logger('network-sniffer')
 
 
 class EthernetProtocol(Enum):
