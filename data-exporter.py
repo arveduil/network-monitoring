@@ -92,23 +92,27 @@ def clear_outdated():
     pass
 
 
-def insert_connection(connection, timestamp, transfer):
+def insert_connection(connection, timestamp: datetime, transfer):
     # It's always upload
     cur = postgres.cursor()
     duration = get_now() - timestamp
-
+    timestamp_db_format = f'{timestamp:%Y-%m-%d %H:%M:%S%z}'
     # TODO: Insert tags
-    cur.execute('''INSERT INTO Connections (
-                                timestamp,
-                                host1,
-                                host2,
-                                host1_rdns,
-                                host2_rdns,
-                                upload,
-                                duration,
-                            )
-                            VALUES (?, ?, ?, ?, ?)                   
-    ''', [timestamp, connection[0], connection[1], rDNS[connection[0]], rDNS[connection[1]], transfer, duration])
+    # TODO: Check upload
+    # TODO: Check duration
+    
+    insert_query = str(f"""INSERT INTO Connections VALUES ('{timestamp_db_format}',
+                                                      '{connection[0]}',
+                                                      '{connection[1]}',
+                                                      '{rDNS[connection[0]]}',
+                                                      '{rDNS[connection[1]]}',
+                                                      '{transfer}',
+                                                      '{transfer}',
+                                                       {int(duration.total_seconds())},
+                                                      '[]' )  """)
+    cur.execute(insert_query)
+
+
 
 
 def update_connection(connection, duration_delta, upload=None, download=None):
@@ -116,11 +120,10 @@ def update_connection(connection, duration_delta, upload=None, download=None):
     cur = postgres.cursor()
 
 
-
 # TODO: Implement from pseudocode
 def update_connections(new_records):
     for record in new_records:
-        timestamp = record[0]
+        timestamp = datetime.datetime.fromisoformat(record[0])
         source, destination = record[1], record[2]
         transfer = record[3]
 
@@ -149,7 +152,7 @@ def update_connections(new_records):
 def process_records(new_records):
     rdns_lookups(new_records)
     update_connections(new_records)
-
+    postgres.commit()
 
 def listen():
     create_destination_table()
