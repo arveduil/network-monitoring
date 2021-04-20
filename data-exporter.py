@@ -3,7 +3,7 @@ import sqlite3
 import os
 import socket
 import time
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from dotenv import load_dotenv
 from utils.logs import get_logger
 import psycopg2 as pg
@@ -42,7 +42,7 @@ def create_destination_table():
                         host2_rdns text,
                         download integer NOT NULL default 0,
                         upload integer NOT NULL default 0,
-                        duration integer NOT NULL,
+                        duration double precision NOT NULL,
                         tags json
         )'''
     )
@@ -60,6 +60,10 @@ def flat_map(f, xs):
     return ys
 
 
+def timedelta_to_psql(timedelta: datetime.timedelta):
+    return format(timedelta.total_seconds(), 'f')
+
+
 def rdns_lookups(records):
     ips = flat_map(lambda x: [x[1], x[2]], records)
     for ip in ips:
@@ -68,15 +72,13 @@ def rdns_lookups(records):
             log.debug(ip + "\t" + str(rDNS[ip]))
 
 
-def get_query(timestamp):
-    if timestamp:
-        return f"SELECT * FROM TrafficLogs WHERE TrafficLogs.timestamp > '{timestamp}'"
-    return "SELECT * FROM TrafficLogs"
-
-
 def fetch_records(timestamp):
     cur = sqlite.cursor()
-    cur.execute(get_query(timestamp))
+    query = "SELECT * FROM TrafficLogs"
+    if timestamp:
+        query = f"SELECT * FROM TrafficLogs WHERE TrafficLogs.timestamp > '{timestamp}'"
+
+    cur.execute(query)
     records = cur.fetchall()
 
     log.debug(f'Fetched records: {len(records)}')
@@ -96,31 +98,71 @@ def insert_connection(connection, timestamp: datetime, transfer):
     # It's always upload
     cur = postgres.cursor()
     duration = get_now() - timestamp
-    timestamp_db_format = f'{timestamp:%Y-%m-%d %H:%M:%S%z}'
     # TODO: Insert tags
-    # TODO: Check upload
-    # TODO: Check duration
-    
-    insert_query = str(f"""INSERT INTO Connections VALUES ('{timestamp_db_format}',
-                                                      '{connection[0]}',
-                                                      '{connection[1]}',
-                                                      '{rDNS[connection[0]]}',
-                                                      '{rDNS[connection[1]]}',
-                                                      '{transfer}',
-                                                      '{transfer}',
-                                                       {int(duration.total_seconds())},
-                                                      '[]' )  """)
-    cur.execute(insert_query)
 
-
+    cur.execute("""
+        INSERT INTO Connections VALUES (
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s
+        )
+    """, [
+        timestamp,
+        connection[0],
+        connection[1],
+        rDNS.get(connection[0]),
+        rDNS.get(connection[1]),
+        0,
+        transfer,
+        duration.total_seconds(),
+        []
+    ])
 
 
 def update_connection(connection, duration_delta, upload=None, download=None):
     # TODO: Implement
     cur = postgres.cursor()
+    if not upload and not download:
+        raise Exception('No upload or download for connection update')
+
+    query = ""
+    delta_seconds = timedelta_to_psql(duration_delta)
+    if upload:
+        query = f"""
+            UPDATE Connections 
+            SET upload = upload + {upload},
+                duration = duration + {delta_seconds}
+            WHERE host1='{connection[0]}' AND host2='{connection[1]}'
+            AND timestamp = (
+                SELECT timestamp from Connections
+                WHERE host1='{connection[0]}' AND host2='{connection[1]}'
+                ORDER BY timestamp DESC
+                LIMIT 1
+            )
+        """
+    if download:
+        query = f"""
+            UPDATE Connections 
+            SET download = download + {download},
+                duration = duration + {delta_seconds}
+            WHERE host1='{connection[0]}' AND host2='{connection[1]}'
+            AND timestamp = (
+                SELECT timestamp from Connections
+                WHERE host1='{connection[0]}' AND host2='{connection[1]}'
+                ORDER BY timestamp DESC
+                LIMIT 1
+            )       
+        """
+
+    cur.execute(query)
 
 
-# TODO: Implement from pseudocode
 def update_connections(new_records):
     for record in new_records:
         timestamp = datetime.datetime.fromisoformat(record[0])
@@ -154,13 +196,24 @@ def process_records(new_records):
     update_connections(new_records)
     postgres.commit()
 
+
+def get_current_timestamp() -> Optional[datetime.datetime]:
+    cur = postgres.cursor()
+    cur.execute("""
+        SELECT "timestamp" from Connections
+        ORDER BY "timestamp" DESC
+        LIMIT 1 
+    """)
+    result = cur.fetchall()
+    if len(result) > 0:
+        return result[0][0]
+    return None
+
+
 def listen():
     create_destination_table()
-    # TODO: It will insert each record gathered from the start every time on restart.
-    # TODO: Possible solutions:
-    # TODO: 1. Get latest timestamp from PG "Connections" DB, add "duration" seconds, and set as initial timestamp
-    # TODO: 2. Implement a safe way of locking the table before fetch and deleting records after successful fetch - then unlocking
-    current_timestamp = None
+    # TODO: Implement a safe way of locking the table before fetch and deleting records after successful fetch - then unlocking
+    current_timestamp = get_current_timestamp()
     while True:
         records = fetch_records(current_timestamp)
         process_records(records)

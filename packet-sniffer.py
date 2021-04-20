@@ -5,7 +5,7 @@ import os
 import sys
 import sqlite3
 from enum import Enum
-from typing import Union
+from typing import Optional
 
 from utils.logs import get_logger
 from utils.time import get_now
@@ -18,7 +18,7 @@ class EthernetProtocol(Enum):
     IPV6 = "IPV6"
 
 
-def get_proto(hex_proto_type) -> Union[EthernetProtocol, None]:
+def get_proto(hex_proto_type) -> Optional[EthernetProtocol]:
     if hex_proto_type == '0x800':
         return EthernetProtocol.IPV4
     elif hex_proto_type == '0x86dd':
