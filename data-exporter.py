@@ -68,8 +68,11 @@ def rdns_lookups(records):
     ips = flat_map(lambda x: [x[1], x[2]], records)
     for ip in ips:
         if ip not in rDNS:
-            rDNS[ip] = socket.getnameinfo((ip, 0), 0)[0]
-            log.debug(ip + "\t" + str(rDNS[ip]))
+            try:
+                rDNS[ip] = socket.getnameinfo((ip, 0), 0)[0]
+                log.debug(ip + "\t" + str(rDNS[ip]))
+            except:
+                log.debug("Error during rDNS with ip: " + ip)
 
 
 def fetch_records(timestamp):

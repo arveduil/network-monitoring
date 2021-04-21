@@ -10,11 +10,14 @@
 2. `poetry shell`
 3. `sudo $(which python) ./packet-sniffer`
 
+### Troubleshooting
+Possible error with `psycopg2`, potential solution:  
+`sudo apt install libpq-dev python3-dev`
 
-# Packet Sniffer
+# Data Exporter
 
-###  TODO
-
+### Usage
+`sudo $(which python) ./data-exporter`
 
 #  PostgreSQL + Grafana
 
@@ -23,4 +26,11 @@
 Configure your local setup in `.env` file in project root, using `.env.example` as a template for your file
 
 ### Startup
-`docker-compose up --env-file .env`
+1. `docker-compose up --env-file .env`
+2. Go to  `localhost:3000` and create admin
+3. Add PostgreSQL data source
+4. Create a dashboard using `grafana_dashboard.json`
+
+### Troubleshooting
+Possible error with adding PostgreSQL datasource, potential solution:  
+Replace localhost with `host.docker.internal` or provide IP of PostgreSQL container
