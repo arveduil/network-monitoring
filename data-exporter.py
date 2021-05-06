@@ -5,6 +5,8 @@ import socket
 import time
 from typing import Dict, Tuple, Optional
 from dotenv import load_dotenv
+import json
+from mappings import extract_tag
 from utils.logs import get_logger
 import psycopg2 as pg
 
@@ -97,11 +99,23 @@ def clear_outdated():
     pass
 
 
+def get_connection_tags(connection):
+    tag_table = []
+
+    tag_1 = extract_tag(connection[0])
+    if tag_1:
+        tag_table.append(tag_1)
+    tag_2 = extract_tag(connection[1])
+    if tag_2:
+        tag_table.append(tag_2)
+
+    return tag_table
+
+
 def insert_connection(connection, timestamp: datetime, transfer):
     # It's always upload
     cur = postgres.cursor()
     duration = get_now() - timestamp
-    # TODO: Insert tags
 
     cur.execute("""
         INSERT INTO Connections VALUES (
@@ -124,7 +138,7 @@ def insert_connection(connection, timestamp: datetime, transfer):
         0,
         transfer,
         duration.total_seconds(),
-        []
+        json.dumps(get_connection_tags(connection))
     ])
 
 
