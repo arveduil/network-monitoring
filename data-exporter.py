@@ -71,7 +71,10 @@ def rdns_lookups(records):
     for ip in ips:
         if ip not in rDNS:
             try:
-                rDNS[ip] = socket.getnameinfo((ip, 0), 0)[0]
+                rDNS_result = socket.getnameinfo((ip, 0), 0)[0]
+                if rDNS_result is None:
+                    rDNS_result = ip
+                rDNS[ip] = rDNS_result
                 log.debug(ip + "\t" + str(rDNS[ip]))
             except:
                 log.debug("Error during rDNS with ip: " + ip)
