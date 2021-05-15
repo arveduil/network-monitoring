@@ -1,25 +1,26 @@
-#Dokumentacja techniczna
+# Dokumentacja techniczna
 
-##Schemat aplikacji
+## Schemat aplikacji
 ![alt text](images/app-diagram.png "Schemat aplikacji")
-##Architektura
-###Opis
+## Architektura
+### Opis
 Proces Packet Sniffer zajmuje się pobieraniem danych o ruchu sieciowym
 bezpośrednio z pakietów, które są zapisywane do bazy SQLite.  
 Proces Data Exporter zajmuje się pobraniem surowych informacji z bazy SQLite,
 znalezieniem adresu DNS, wyliczeniem czasu trwania połączenia dla poszczególnych
 hostów, oraz zaisania tych informacji w bazie PostgreSQL.  
 Grafana jest narzędziem służącym do wizualizacji danych w postaci wykresów.
-###Geneza
+### Geneza
 Początkowo architektura zakładała wykorzystanie jednego komponentu który 
 zajmowałby się pobieraniem informacji o pakietach oraz udostępnianiem ich 
-do wizualizacji. Powodem rozdzielenia na dwa komponenty (Packet Sniffer
- i Data Exporter) jest fakt, iż wydajne parsowanie ramek Ethernet wymaga 
+do wizualizacji za pomocą narzędzia Prometheus. Powodem rozdzielenia tego 
+komponentu na dwa (Packet Sniffer i Data Exporter) jest fakt, iż wydajne parsowanie ramek Ethernet wymaga 
 ograniczenia innych czynności wykonywanych przez proces do minimum.  
-Dodatkowo zrezygnowaliśmy 
-##Opis komponentów
-###Packet sniffer
-Jest to program, którego celem jest parsowanie ramek Ethernet w celu 
+Dodatkowo zrezygnowaliśmy z użycia narzędzia Prometheus, ponieważ 
+okazało się ono zbędne.
+## Opis komponentów
+### Packet sniffer
+Proces, którego celem jest parsowanie ramek Ethernet w celu 
 znalezienia pakietów IP. Informacje z tych pakietów 
 są zapisywane co 5 sekund w bazie SQLite w formacie:
 
@@ -28,8 +29,8 @@ są zapisywane co 5 sekund w bazie SQLite w formacie:
 - destination *text* - adres IP celu
 - data *integer* - rozmiar pakietu w bajtach
 
-###Data exporter
-Jest to program, którego celem jest pobranie rekordów z bazy SQLite. 
+### Data exporter
+Proces który cyklicznie pobiera rekordy z bazy SQLite. 
 Następnie proces dopasowywuje adres DNS za pomocą metody rDNS.
 Kolejnym krokiem jest wyliczenie czasu trwania połączenia oraz przypisanie odpowienich
 tagów. Ostatnim krokiem jest zapisanie rekordów do bazy PostgreSQL w postaci:
@@ -43,5 +44,5 @@ tagów. Ostatnim krokiem jest zapisanie rekordów do bazy PostgreSQL w postaci:
 - duration *double precision NOT NULL* - czas trwania połączenia
 - tags *json* - tagi określające powiązane witryny, np. facebook
 
-###Grafana
+### Grafana
 Grafana jest narzędziem wizualizującym dane pobrane bezpośrednio z bazy PostgreSQL.
