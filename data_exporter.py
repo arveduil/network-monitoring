@@ -15,13 +15,15 @@ from utils.time import get_now
 load_dotenv()
 log = get_logger('data-exporter')
 sqlite = sqlite3.connect('traffic.sqlite')
-postgres = pg.connect(
-    database=os.getenv('POSTGRES_DB'),
-    user=os.getenv('POSTGRES_USER'),
-    password=os.getenv('POSTGRES_PASSWORD'),
-    host=os.getenv('POSTGRES_HOST') or '127.0.0.1',
-    port=os.getenv('POSTGRES_PORT') or '5432'
-)
+
+def postgres_connect():
+    return pg.connect(
+        database=os.getenv('POSTGRES_DB'),
+        user=os.getenv('POSTGRES_USER'),
+        password=os.getenv('POSTGRES_PASSWORD'),
+        host=os.getenv('POSTGRES_HOST') or '127.0.0.1',
+        port=os.getenv('POSTGRES_PORT') or '5432'
+    )
 
 rDNS = {}
 
@@ -30,7 +32,7 @@ persisting_connections: Dict[Connection, datetime.datetime] = {}
 CONTINUITY_THRESHOLD = datetime.timedelta(minutes=5)  # TODO: Maybe make configurable, or fine-tune this variable
 
 
-def create_destination_table():
+def create_destination_table(postgres):
     cur = postgres.cursor()
     # Semantics for that table are:
     # Upload:   host1 -> host2
@@ -65,7 +67,7 @@ def flat_map(f, xs):
 def timedelta_to_psql(timedelta: datetime.timedelta):
     return format(timedelta.total_seconds(), 'f')
 
-
+# TODO: Unit test
 def rdns_lookups(records):
     ips = flat_map(lambda x: [x[1], x[2]], records)
     for ip in ips:
@@ -115,7 +117,7 @@ def get_connection_tags(connection):
     return tag_table
 
 
-def insert_connection(connection, timestamp: datetime, transfer):
+def insert_connection(postgres, connection, timestamp: datetime, transfer):
     # It's always upload
     cur = postgres.cursor()
     duration = get_now() - timestamp
@@ -145,7 +147,7 @@ def insert_connection(connection, timestamp: datetime, transfer):
     ])
 
 
-def update_connection(connection, duration_delta, upload=None, download=None):
+def update_connection(postgres, connection, duration_delta, upload=None, download=None):
     # TODO: Implement
     cur = postgres.cursor()
     if not upload and not download:
@@ -183,7 +185,7 @@ def update_connection(connection, duration_delta, upload=None, download=None):
     cur.execute(query)
 
 
-def update_connections(new_records):
+def update_connections(postgres,new_records):
     for record in new_records:
         timestamp = datetime.datetime.fromisoformat(record[0])
         source, destination = record[1], record[2]
@@ -202,22 +204,22 @@ def update_connections(new_records):
 
         if last_timestamp and duration_delta < CONTINUITY_THRESHOLD:
             if source_dest:
-                update_connection(connection, duration_delta, upload=transfer)
+                update_connection(postgres, connection, duration_delta, upload=transfer)
             elif dest_source:
-                update_connection(connection, duration_delta, download=transfer)
+                update_connection(postgres, connection, duration_delta, download=transfer)
         else:
-            insert_connection(connection, timestamp, transfer)
+            insert_connection(postgres, connection, timestamp, transfer)
         persisting_connections[connection] = timestamp
     clear_outdated()
 
 
-def process_records(new_records):
+def process_records(postgres, new_records):
     rdns_lookups(new_records)
-    update_connections(new_records)
+    update_connections(postgres, new_records)
     postgres.commit()
 
 
-def get_current_timestamp() -> Optional[datetime.datetime]:
+def get_current_timestamp(postgres) -> Optional[datetime.datetime]:
     cur = postgres.cursor()
     cur.execute("""
         SELECT "timestamp" from Connections
@@ -230,17 +232,18 @@ def get_current_timestamp() -> Optional[datetime.datetime]:
     return None
 
 
-def listen():
-    create_destination_table()
+def listen(postgres):
+    create_destination_table(postgres)
     # TODO: Implement a safe way of locking the table before fetch and deleting records after successful fetch - then unlocking
-    current_timestamp = get_current_timestamp()
+    current_timestamp = get_current_timestamp(postgres)
     while True:
         records = fetch_records(current_timestamp)
-        process_records(records)
+        process_records(postgres, records)
 
         if len(records):
             current_timestamp = latest_timestamp(records)
         time.sleep(5)
 
 
-listen()
+if __name__ == '__main__':
+    listen(postgres_connect())

@@ -60,7 +60,6 @@ def create_table_with_index(db):
 def monitor(db):
     raw_socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
     connections = {}
-    packet_count = 0
 
     last_insert_timestamp_seconds = None
     while True:
@@ -79,8 +78,6 @@ def monitor(db):
             log.debug(f'SQL Executed: INSERT INTO TrafficLogs ({len(connections.keys())} records) ')
             connections = {}
 
-        packet_count = packet_count + 1
-
         raw_data, addr = raw_socket.recvfrom(65536)
         dest_mac, src_mac, eth_proto, data = ethernet_frame(raw_data)
 
@@ -93,18 +90,18 @@ def monitor(db):
         connections[connection] = (connections.get(connection) or 0) + len(raw_data)
 
 
-db_connection = None
-
-try:
-    db_connection = sqlite3.connect('traffic.sqlite')
-    create_table_with_index(db_connection)
-    monitor(db_connection)
-    db_connection.close()
-except KeyboardInterrupt:
-    log.error('Program received interrupt signal!')
-    if db_connection:
-        db_connection.close()
+if __name__ == '__main__':
+    db_connection = None
     try:
-        sys.exit(0)
-    except SystemExit:
-        os._exit(0)
+        db_connection = sqlite3.connect('traffic.sqlite')
+        create_table_with_index(db_connection)
+        monitor(db_connection)
+        db_connection.close()
+    except KeyboardInterrupt:
+        log.error('Program received interrupt signal!')
+        if db_connection:
+            db_connection.close()
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
