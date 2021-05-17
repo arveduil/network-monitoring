@@ -31,6 +31,9 @@ Configure your local setup in `.env` file in project root, using `.env.example` 
 3. Add PostgreSQL data source
 4. Create a dashboard using `grafana_dashboard.json`
 
+### Running tests
+run `python -m unittest` in the main directory
+
 ### Troubleshooting
 Possible error with adding PostgreSQL datasource, potential solution:  
 Replace localhost with `host.docker.internal` or provide IP of PostgreSQL container
