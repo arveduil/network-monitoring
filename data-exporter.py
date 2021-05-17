@@ -65,7 +65,7 @@ def flat_map(f, xs):
 def timedelta_to_psql(timedelta: datetime.timedelta):
     return format(timedelta.total_seconds(), 'f')
 
-
+# TODO: Unit test
 def rdns_lookups(records):
     ips = flat_map(lambda x: [x[1], x[2]], records)
     for ip in ips:
@@ -101,7 +101,7 @@ def clear_outdated():
     # TODO: Implement clearing outdated connections (last_timestamp older than the threshold)
     pass
 
-
+# TODO: Unit test
 def get_connection_tags(connection):
     tag_table = []
 
@@ -243,4 +243,5 @@ def listen():
         time.sleep(5)
 
 
-listen()
+if __name__ == '__main__':
+    listen()
